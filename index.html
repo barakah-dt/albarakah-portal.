@@ -420,8 +420,70 @@ a.card:focus-visible {
   }
 }
 
+/* ------------------------------ نافذة تشغيل الفيديو ------------------------------ */
+.video-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(1, 58, 58, 0.78);
+}
+.video-modal.is-open { display: flex; }
+.video-modal__box {
+  width: 100%;
+  max-width: 900px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.video-modal__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.video-modal__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--green-900);
+}
+.video-modal__close {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--green-50);
+  color: var(--green-900);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.video-modal__close:focus-visible { outline: 3px solid var(--gold-400); outline-offset: 2px; }
+.video-modal__frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.video-modal__frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 @media print {
   body { background: #fff; }
+  .video-modal { display: none !important; }
   .card { box-shadow: none; break-inside: avoid; }
   .skip-link { display: none; }
 }
@@ -461,6 +523,16 @@ a.card:focus-visible {
         <span class="website-link__label"></span>
       </a>
     </footer>
+  </div>
+
+  <div class="video-modal" id="video-modal" role="dialog" aria-modal="true" aria-labelledby="video-modal-title" hidden>
+    <div class="video-modal__box">
+      <div class="video-modal__bar">
+        <h2 class="video-modal__title" id="video-modal-title"></h2>
+        <button type="button" class="video-modal__close" id="video-modal-close" aria-label="إغلاق الفيديو">&times;</button>
+      </div>
+      <div class="video-modal__frame" id="video-modal-frame"></div>
+    </div>
   </div>
 
   <script>
@@ -512,7 +584,7 @@ window.PORTAL_CONFIG = {
 
     footerText: "جمعية البركة الخيرية – جميع الحقوق محفوظة",
     /* اترك القيمة فارغة "" لإخفاء رابط الموقع الرسمي من التذييل */
-    websiteUrl: "https://www.albarkah.org/",
+    websiteUrl: "https://albarakah.org.sa/",
     websiteLabel: "الموقع الرسمي للجمعية",
   },
 
@@ -560,7 +632,7 @@ window.PORTAL_CONFIG = {
       icon: "play",
       title: "طريقة تسجيل مستفيد جديد",
       description: "شاهد خطوات التسجيل في الجمعية.",
-      url: "https://youtu.be/spPB3CvN2PE",
+      url: "https://youtu.be/1SFUC95URfc",
     },
     {
       id: "self-update-video",
@@ -569,7 +641,7 @@ window.PORTAL_CONFIG = {
       icon: "video-guide",
       title: "طريقة التحديث الذاتي",
       description: "شاهد خطوات تحديث بياناتك إلكترونيًا.",
-      url: "https://youtu.be/IS8MCtq9KWE",
+      url: "https://youtu.be/BCuJz46NZD4",
     },
   ],
 };
@@ -649,6 +721,63 @@ window.PORTAL_ICONS = {
     }
   }
 
+  /* استخراج معرّف فيديو يوتيوب من رابط youtu.be أو youtube.com */
+  function youtubeId(url) {
+    try {
+      var u = new URL(url);
+      var id = null;
+      if (u.hostname === "youtu.be") id = u.pathname.slice(1);
+      else if (/(^|\.)youtube\.com$/.test(u.hostname)) {
+        id = u.searchParams.get("v") ||
+          (u.pathname.match(/^\/(?:embed|shorts)\/([^/?]+)/) || [])[1];
+      }
+      return id && /^[A-Za-z0-9_-]{6,20}$/.test(id) ? id : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  var modal = document.getElementById("video-modal");
+  var modalFrame = document.getElementById("video-modal-frame");
+  var modalTitle = document.getElementById("video-modal-title");
+  var modalClose = document.getElementById("video-modal-close");
+  var lastFocus = null;
+
+  function openVideo(id, title, origin) {
+    if (!modal) return;
+    lastFocus = origin;
+    modalTitle.textContent = title || "";
+    var iframe = document.createElement("iframe");
+    iframe.src = "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1&rel=0";
+    iframe.title = title || "فيديو";
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    modalFrame.innerHTML = "";
+    modalFrame.appendChild(iframe);
+    modal.hidden = false;
+    modal.classList.add("is-open");
+    modalClose.focus();
+  }
+
+  function closeVideo() {
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    modal.hidden = true;
+    modalFrame.innerHTML = ""; /* يوقف التشغيل */
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+
+  if (modal) {
+    modalClose.addEventListener("click", closeVideo);
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) closeVideo();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && modal.classList.contains("is-open")) closeVideo();
+    });
+  }
+
   function setText(id, value) {
     var node = document.getElementById(id);
     if (node && value) node.textContent = value;
@@ -687,6 +816,15 @@ window.PORTAL_ICONS = {
       card.href = url;
       card.target = "_blank";
       card.rel = "noopener noreferrer";
+      var videoId = service.type === "video" ? youtubeId(url) : null;
+      if (videoId) {
+        /* الرابط يبقى كبديل (فتح في يوتيوب) إذا تعذّر التشغيل داخل الصفحة */
+        card.addEventListener("click", function (e) {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+          e.preventDefault();
+          openVideo(videoId, service.title, card);
+        });
+      }
       card.setAttribute(
         "aria-label",
         service.title + " – " + (service.description || "") + " (يفتح في نافذة جديدة)"
